@@ -169,3 +169,12 @@ gzip ls.trace
 Traces created with the champsim_tracer.so are 64 bytes per instruction,
 but they generally compress down to 2-10 bytes per instruction using gzip.
 ChampSim takes a gzip file as input with -traces argument.
+
+# From Na Yeon (small notes)
+
+InitReplacementState(), GetVictimInSet(), UpdateReplacementState(), PrintStats_Heartbeat(), PrintStats() are all default functions.
+
+In the LRU example, lru[LLC_SETS][LLC_WAYS] is used for keeping track of 'how recent' the 'way' is.
+Here, 'sets' and 'ways' are used. Sets refer to sampled sets, and way in the UpdateReplacementState function parameter refer to 'way' that is chosen when cache hit (refer to n-way cache)
+
+Hawkeye seems to be based on the SRRIP example. It uses Re-Reference Interval Prediction (RRIP), and utilizes 'maxRRPV'.
