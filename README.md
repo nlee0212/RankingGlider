@@ -184,13 +184,29 @@ Hawkeye seems to be based on the SRRIP example. It uses Re-Reference Interval Pr
 (hawkeye implementation)
 
 ## Arrays
-rrpv : Array containing RRPV value. 
-Signature : Contains PC.
-Prefetched : 
+`rrpv` : Array containing RRPV value. 
+`signature` : Contains PC.
+`prefetched` : Denote whether this line is prefetched, or on demand.
+`addr_history` : `ADDR_INFO[#Sample_Set][#Tag]`.
+`ADDR_INFO` : Contains address, last quanta, PC, prefetched, lru.
 
-## paddr to things
+## Somethings
 - tag : `CRC(paddr >> 12) % 256`
 - set : `(paddr >> 6) % SAMPLER_SETS`
+- `SAMPLED_SET` : Hawkeye uses only 64 sets for training, and this represents such SET.
+
+## Parameter
+- `cpu` : ???
+- `set` : The index of set.
+- `current_set` : ???
+- `PC` : Current PC
+- `paddr` : Physical address. Used to get tag and set.
+- `type` : The type of this access. Demand or Prefetch.
+- `sampler_set` : The set that will be updated/replaced.
+- `curr_lru` : LRU value that will be used to update.
+- `way` : The way of victim / hit.
+- `victim_addr` : The address of victim.
+- `hit` : Is this update hit? or miss?
 
 ## Functions
 `InitReplacementState()`
@@ -235,3 +251,29 @@ The line is either demanded (type != PREFETCH) or prefetch (type == PREFETCH).
   + Get prediction from Hawkeye (line 262-264).
   + Update the history, and timer.
 - Finally, set RRPV value.
+
+(Our solution)
+
+I don't think that we should modify much of the components.
+
+1. We implement Integer Ranking SVM, which replaces `hawkeye_predictor.h`.
+2. Each call of increment/decrement to `prefetch_predictor` and `demand_predictor` should be replaced to integer SVM's.
+3. Such call require two parameter. Current PC history, victim's PC history. We will maintain these in global varaible.
+
+So, we need to modify following functions.
+
+`InitReplacementState()`
+- Line 83, 84 : Modify to Ranking SVM initialization
+- Add PC History for both cache and current.
+
+`GetVictimInSet()`
+- Rewrite, but similar to LRU version.
+- It will access our predictor, and return first negative example.
+- If no such element, return 16 (bypass).
+- line 112-118 : Replace hawkeye predictor to Ranking SVM.
+
+`UpdateReplacementState()`
+- line 199, 201, 207, 209, 248, 250. Replace hawkeye predictor to Ranking SVM.
+- Add the PC history maintenance.
+  + For the current PC history, replace the oldest one to current PC.
+  + For the cache history, 
