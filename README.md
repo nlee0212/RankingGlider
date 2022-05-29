@@ -178,3 +178,60 @@ In the LRU example, lru[LLC_SETS][LLC_WAYS] is used for keeping track of 'how re
 Here, 'sets' and 'ways' are used. Sets refer to sampled sets, and way in the UpdateReplacementState function parameter refer to 'way' that is chosen when cache hit (refer to n-way cache)
 
 Hawkeye seems to be based on the SRRIP example. It uses Re-Reference Interval Prediction (RRIP), and utilizes 'maxRRPV'.
+
+# From Taeyoung
+
+(hawkeye implementation)
+
+## Arrays
+rrpv : Array containing RRPV value. 
+Signature : Contains PC.
+Prefetched : 
+
+## paddr to things
+- tag : `CRC(paddr >> 12) % 256`
+- set : `(paddr >> 6) % SAMPLER_SETS`
+
+## Functions
+`InitReplacementState()`
+Initialize the state.
+
+- RRPV : Init to MaxRRPV.
+- Signature : Init to 0.
+- Prefetchec : Init to False.
+
+`GetVictimInSet`
+
+1. If exist maxRRPV, let it to victim.
+2. If none, find one with RRPV maximum.
+3. Train predictor, decrease the victim.
+4. Return the victim.
+
+`replace_addr_history_element`
+Iterate address history. Erase the element with largest LRU value.
+
+`update_addr_history_lru`
+Iterate address history. Increase lru for those with lower lru than curr_lru.
+
+`UpdateReplacementState()`
+
+The line is either demanded (type != PREFETCH) or prefetch (type == PREFETCH).
+
+- The line has been used, and is not prefetch.
+  + Tested using `history.find(tag) != history.end()` (line 188)
+  + If OPTgen predicted to should cache this line (line 196), increment.
+  + Else (line 203), decrement (207, 209).
+  + Maintenance OPTgen() (line 212-213), and mark the prefetched to false.
+  + Q : What does wrap do? It seems to check whether this line is far from current timer.
+- The line has not been used.
+  + Tested using `history.find(tag) == history.end()` (line 219) 
+  + Remove ont element from addr history if full (line 223).
+  + Add new entry (line 227), and add its info to OPTgen. 
+- The line is prefetched.
+  + Tested using `type == PREFETCH` (line 238)
+  + Again, if OPTgen predicted to should cache this line, increment.
+  + Mark prefetch, and maintenence on OPTgen.
+- After these three branch, do following.
+  + Get prediction from Hawkeye (line 262-264).
+  + Update the history, and timer.
+- Finally, set RRPV value.
