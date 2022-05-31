@@ -277,3 +277,8 @@ So, we need to modify following functions.
 - Add the PC history maintenance.
   + For the current PC history, replace the oldest one to current PC.
   + For the cache history, 
+
+  # Nayeon (5/31)
+  - Created a RGlider directory which will be our main working directory
+  - Renamed the file names
+  - Will work on function modification
