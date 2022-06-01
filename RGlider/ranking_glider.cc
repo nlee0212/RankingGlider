@@ -47,7 +47,8 @@ bool prefetched[LLC_SETS][LLC_WAYS];
 //HAWKEYE_PC_PREDICTOR* prefetch_predictor;  //Predictor
 
 #include "ranking_svm.h"
-Integer_Ranking_SVM* ranking_glider_predictor;
+Integer_Ranking_SVM* demand_predictor;  //Predictor
+Integer_Ranking_SVM*  prefetch_predictor;  //Predictor
 
 #define OPTGEN_VECTOR_SIZE 128
 #include "optgen.h"
@@ -90,10 +91,10 @@ void InitReplacementState()
     for (int i=0; i<SAMPLER_SETS; i++) 
         addr_history[i].clear();
 
-    //demand_predictor = new HAWKEYE_PC_PREDICTOR();
-    //prefetch_predictor = new HAWKEYE_PC_PREDICTOR();
+    demand_predictor = new Integer_Ranking_SVM();
+    prefetch_predictor = new Integer_Ranking_SVM();
 
-    ranking_glider_predictor = new Integer_Ranking_SVM();
+    //ranking_glider_predictor = new Integer_Ranking_SVM();
     
     for(int i=0;i<k;i++){
         curr_pc_hist[i] = 0;
@@ -131,11 +132,11 @@ uint32_t GetVictimInSet (uint32_t cpu, uint32_t set, const BLOCK *current_set, u
     //The predictor is trained negatively on LRU evictions
     if( SAMPLED_SET(set) )
     {
-        ranking_glider_predictor->decrement(curr_pc_hist,victim_pc_hist);
-        //if(prefetched[set][lru_victim])
-        //    prefetch_predictor->decrement(curr_pc_hist,victim_pc_hist);
-        //else
-        //    demand_predictor->decrement(curr_pc_hist,victim_pc_hist);
+        //ranking_glider_predictor->decrement(curr_pc_hist,victim_pc_hist);
+        if(prefetched[set][lru_victim])
+            prefetch_predictor->decrement(curr_pc_hist,victim_pc_hist);
+        else
+            demand_predictor->decrement(curr_pc_hist,victim_pc_hist);
     }
     return lru_victim;
 
@@ -217,17 +218,21 @@ void UpdateReplacementState (uint32_t cpu, uint32_t set, uint32_t way, uint64_t 
             if( !wrap && perset_optgen[set].should_cache(curr_quanta, last_quanta))
             {
                 if(addr_history[sampler_set][sampler_tag].prefetched)
-                    prefetch_predictor->increment(addr_history[sampler_set][sampler_tag].PC);
+                    //prefetch_predictor->increment(addr_history[sampler_set][sampler_tag].PC);
+                    prefetch_predictor->increment(curr_pc_hist,victim_pc_hist);
                 else
-                    demand_predictor->increment(addr_history[sampler_set][sampler_tag].PC);
+                    //demand_predictor->increment(addr_history[sampler_set][sampler_tag].PC);
+                    demand_predictor->increment(curr_pc_hist,victim_pc_hist);
             }
             else
             {
                 //Train the predictor negatively because OPT would not have cached this line
                 if(addr_history[sampler_set][sampler_tag].prefetched)
-                    prefetch_predictor->decrement(addr_history[sampler_set][sampler_tag].PC);
+                    //prefetch_predictor->decrement(addr_history[sampler_set][sampler_tag].PC);
+                    prefetch_predictor->decrement(curr_pc_hist,victim_pc_hist);
                 else
-                    demand_predictor->decrement(addr_history[sampler_set][sampler_tag].PC);
+                    //demand_predictor->decrement(addr_history[sampler_set][sampler_tag].PC);
+                    demand_predictor->decrement(curr_pc_hist,victim_pc_hist);
             }
             //Some maintenance operations for OPTgen
             perset_optgen[set].add_access(curr_quanta);
@@ -266,9 +271,11 @@ void UpdateReplacementState (uint32_t cpu, uint32_t set, uint32_t way, uint64_t 
                 if(perset_optgen[set].should_cache(curr_quanta, last_quanta))
                 {
                     if(addr_history[sampler_set][sampler_tag].prefetched)
-                        prefetch_predictor->increment(addr_history[sampler_set][sampler_tag].PC);
+                        //prefetch_predictor->increment(addr_history[sampler_set][sampler_tag].PC);
+                        prefetch_predictor->increment(curr_pc_hist,victim_pc_hist);
                     else
-                       demand_predictor->increment(addr_history[sampler_set][sampler_tag].PC);
+                        //demand_predictor->increment(addr_history[sampler_set][sampler_tag].PC);
+                        demand_predictor->increment(curr_pc_hist,victim_pc_hist);
                 }
             }
 
