@@ -47,8 +47,7 @@ bool prefetched[LLC_SETS][LLC_WAYS];
 //HAWKEYE_PC_PREDICTOR* prefetch_predictor;  //Predictor
 
 #include "ranking_svm.h"
-Integer_Ranking_SVM* demand_predictor;
-Integer_Ranking_SVM* prefetch_predictor;
+Integer_Ranking_SVM* ranking_glider_predictor;
 
 #define OPTGEN_VECTOR_SIZE 128
 #include "optgen.h"
@@ -70,8 +69,8 @@ vector<map<uint64_t, ADDR_INFO> > addr_history; // Sampler
 // PC histories for both Current and Victim
 #define k 5 // k-sparse binary feature for PC history
 #define MAX_PC_NUM 3000 // maximum number of PCs referring to Table 2.
-uint64_t curr_pc[k];
-uint64_t victim_pc[k];
+uint64_t curr_pc_hist[k];
+uint64_t victim_pc_hist[k];
 short int binary_feature[MAX_PC_NUM];
 
 // initialize replacement state
@@ -94,12 +93,11 @@ void InitReplacementState()
     //demand_predictor = new HAWKEYE_PC_PREDICTOR();
     //prefetch_predictor = new HAWKEYE_PC_PREDICTOR();
 
-    demand_predictor = new Integer_Ranking_SVM();
-    prefetch_predictor = new Integer_Ranking_SVM();
+    ranking_glider_predictor = new Integer_Ranking_SVM();
     
     for(int i=0;i<k;i++){
-        curr_pc[i] = 0;
-        victim_pc[i] = 0;
+        curr_pc_hist[i] = 0;
+        victim_pc_hist[i] = 0;
     }
 
     for(int i=0;i<MAX_PC_NUM;i++)
@@ -112,7 +110,7 @@ void InitReplacementState()
 // return value should be 0 ~ 15 or 16 (bypass)
 uint32_t GetVictimInSet (uint32_t cpu, uint32_t set, const BLOCK *current_set, uint64_t PC, uint64_t paddr, uint32_t type)
 {
-    // look for the maxRRPV line
+    // look for the maxRRPV line (which is the cache-averse line) -> no need to change?
     for (uint32_t i=0; i<LLC_WAYS; i++)
         if (rrpv[set][i] == maxRRPV)
             return i;
@@ -133,10 +131,11 @@ uint32_t GetVictimInSet (uint32_t cpu, uint32_t set, const BLOCK *current_set, u
     //The predictor is trained negatively on LRU evictions
     if( SAMPLED_SET(set) )
     {
-        if(prefetched[set][lru_victim])
-            prefetch_predictor->decrement(signatures[set][lru_victim]);
-        else
-            demand_predictor->decrement(signatures[set][lru_victim]);
+        ranking_glider_predictor->decrement(curr_pc_hist,victim_pc_hist);
+        //if(prefetched[set][lru_victim])
+        //    prefetch_predictor->decrement(curr_pc_hist,victim_pc_hist);
+        //else
+        //    demand_predictor->decrement(curr_pc_hist,victim_pc_hist);
     }
     return lru_victim;
 
