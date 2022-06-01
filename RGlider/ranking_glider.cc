@@ -42,9 +42,13 @@ bool prefetched[LLC_SETS][LLC_WAYS];
 #define MAX_SHCT 31
 #define SHCT_SIZE_BITS 11
 #define SHCT_SIZE (1<<SHCT_SIZE_BITS)
-#include "hawkeye_predictor.h"
-HAWKEYE_PC_PREDICTOR* demand_predictor;  //Predictor
-HAWKEYE_PC_PREDICTOR* prefetch_predictor;  //Predictor
+//#include "hawkeye_predictor.h"
+//HAWKEYE_PC_PREDICTOR* demand_predictor;  //Predictor
+//HAWKEYE_PC_PREDICTOR* prefetch_predictor;  //Predictor
+
+#include "ranking_svm.h"
+Integer_Ranking_SVM* demand_predictor;
+Integer_Ranking_SVM* prefetch_predictor;
 
 #define OPTGEN_VECTOR_SIZE 128
 #include "optgen.h"
@@ -63,6 +67,10 @@ OPTgen perset_optgen[LLC_SETS]; // per-set occupancy vectors; we only use 64 of 
 #define SAMPLER_SETS SAMPLED_CACHE_SIZE/SAMPLER_WAYS
 vector<map<uint64_t, ADDR_INFO> > addr_history; // Sampler
 
+// PC histories for both Current and Victim
+uint64_t curr_pc[SAMPLER_SETS];
+uint64_t victim_pc[SAMPLER_SETS];
+
 // initialize replacement state
 void InitReplacementState()
 {
@@ -77,13 +85,19 @@ void InitReplacementState()
     }
 
     addr_history.resize(SAMPLER_SETS);
-    for (int i=0; i<SAMPLER_SETS; i++) 
+    for (int i=0; i<SAMPLER_SETS; i++){ 
         addr_history[i].clear();
+        curr_pc[i] = 0;
+        victim_pc[i] = 0;
+    }
 
-    demand_predictor = new HAWKEYE_PC_PREDICTOR();
-    prefetch_predictor = new HAWKEYE_PC_PREDICTOR();
+    //demand_predictor = new HAWKEYE_PC_PREDICTOR();
+    //prefetch_predictor = new HAWKEYE_PC_PREDICTOR();
 
-    cout << "Initialize Hawkeye state" << endl;
+    demand_predictor = new Integer_Ranking_SVM();
+    prefetch_predictor = new Integer_Ranking_SVM();
+
+    cout << "Initialize Ranking Glider state" << endl;
 }
 
 // find replacement victim
