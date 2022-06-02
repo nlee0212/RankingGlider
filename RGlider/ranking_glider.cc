@@ -111,6 +111,48 @@ void InitReplacementState()
     cout << "Initialize Ranking Glider state" << endl;
 }
 
+// replace PC with max LRU
+void replace_pc_history_lru(uint64_t PC, uint64_t* pc_history, short int* lru){
+    //short int max_lru = -1;
+    short int max_lru_idx = -1;
+    short int empty_idx = -1;
+
+    for(int i=0;i<k;i++){
+        // if there is an empty seat, no need to find max lru
+        if(lru[i] < 0){
+            empty_idx = i;
+            break;
+        }
+
+        // if oldest lru found, break
+        if(lru[i] == k-1){
+            //max_lru = lru[i];
+            max_lru_idx = i;
+            break;
+        }
+    }
+
+    // if there was an empty seat, fill in the PC, update lru to 0 and return
+    if(empty_idx != -1){
+        pc_history[empty_idx] = PC;
+        lru[empty_idx] = 0;
+        return;
+    }
+
+    // if there is no empty seat, there should be a seat with lru == 4 (oldest)
+    assert(max_lru_idx != -1);
+
+    pc_history[max_lru_idx] = PC;
+    lru[max_lru_idx] = 0;
+}
+
+// update lru value of pc history
+void update_pc_history_lru(short int* lru){
+    for(int i=0;i<k;i++)
+        if(lru[i] >= 0)
+            lru[i]++;
+}
+
 // find replacement victim
 // return value should be 0 ~ 15 or 16 (bypass)
 uint32_t GetVictimInSet (uint32_t cpu, uint32_t set, const BLOCK *current_set, uint64_t PC, uint64_t paddr, uint32_t type)
@@ -183,47 +225,6 @@ void update_addr_history_lru(unsigned int sampler_set, unsigned int curr_lru)
     }
 }
 
-// replace PC with max LRU
-void replace_pc_history_lru(uint64_t PC, uint64_t* pc_history, short int* lru){
-    //short int max_lru = -1;
-    short int max_lru_idx = -1;
-    short int empty_idx = -1;
-
-    for(int i=0;i<k;i++){
-        // if there is an empty seat, no need to find max lru
-        if(lru[i] < 0){
-            empty_idx = i;
-            break;
-        }
-
-        // if oldest lru found, break
-        if(lru[i] == k-1){
-            //max_lru = lru[i];
-            max_lru_idx = i;
-            break;
-        }
-    }
-
-    // if there was an empty seat, fill in the PC, update lru to 0 and return
-    if(empty_idx != -1){
-        pc_history[empty_idx] = PC;
-        lru[empty_idx] = 0;
-        return;
-    }
-
-    // if there is no empty seat, there should be a seat with lru == 4 (oldest)
-    assert(max_lru_idx != -1);
-
-    pc_history[max_lru_idx] = PC;
-    lru[max_lru_idx] = 0;
-}
-
-// update lru value of pc history
-void update_pc_history_lru(short int* lru){
-    for(int i=0;i<k;i++)
-        if(lru[i] >= 0)
-            lru[i]++;
-}
 
 // called on every cache hit and cache fill
 void UpdateReplacementState (uint32_t cpu, uint32_t set, uint32_t way, uint64_t paddr, uint64_t PC, uint64_t victim_addr, uint32_t type, uint8_t hit)
