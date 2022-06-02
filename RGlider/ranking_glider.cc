@@ -73,6 +73,8 @@ vector<map<uint64_t, ADDR_INFO> > addr_history; // Sampler
 uint64_t curr_pc_hist[k];
 uint64_t victim_pc_hist[k];
 short int binary_feature[MAX_PC_NUM];
+short int curr_pc_hist_lru[k];
+short int victim_pc_hist_lru[k];
 
 // initialize replacement state
 void InitReplacementState()
@@ -99,6 +101,8 @@ void InitReplacementState()
     for(int i=0;i<k;i++){
         curr_pc_hist[i] = 0;
         victim_pc_hist[i] = 0;
+        curr_pc_hist_lru[i] = -1;
+        victim_pc_hist_lru[i] = -1;
     }
 
     for(int i=0;i<MAX_PC_NUM;i++)
@@ -176,6 +180,33 @@ void update_addr_history_lru(unsigned int sampler_set, unsigned int curr_lru)
     }
 }
 
+// replace PC with max LRU
+void replace_pc_history_lru(uint64_t PC, short int* pc_history, short int* lru){
+    short int max_lru = -1;
+    short int max_lru_idx = -1;
+
+    for(int i=0;i<k;i++){
+        if(lru[i]>max_lru){
+            max_lru = lru[i];
+            max_lru_idx = i;
+        }
+    }
+
+    if(max_lru_idx == -1){
+        max_lru_idx = 0;
+        max_lru = 0;
+    }
+
+    pc_history[max_lru_idx] = PC;
+    lru[max_lru_idx] = 0;
+}
+
+// update lru value of pc history
+void update_pc_history_lru(short int* lru){
+    for(int i=0;i<k;i++)
+        if(lru[i] >= 0)
+            lru[i]++;
+}
 
 // called on every cache hit and cache fill
 void UpdateReplacementState (uint32_t cpu, uint32_t set, uint32_t way, uint64_t paddr, uint64_t PC, uint64_t victim_addr, uint32_t type, uint8_t hit)
@@ -206,12 +237,12 @@ void UpdateReplacementState (uint32_t cpu, uint32_t set, uint32_t way, uint64_t 
         assert(sampler_set < SAMPLER_SETS);
 
         // This line has been used before. Since the right end of a usage interval is always 
-        //a demand, ignore prefetches
+        // a demand, ignore prefetches
         if((addr_history[sampler_set].find(sampler_tag) != addr_history[sampler_set].end()) && (type != PREFETCH))
         {
             unsigned int curr_timer = perset_mytimer[set];
             if(curr_timer < addr_history[sampler_set][sampler_tag].last_quanta)
-               curr_timer = curr_timer + TIMER_SIZE;
+                curr_timer = curr_timer + TIMER_SIZE;
             bool wrap =  ((curr_timer - addr_history[sampler_set][sampler_tag].last_quanta) > OPTGEN_VECTOR_SIZE);
             uint64_t last_quanta = addr_history[sampler_set][sampler_tag].last_quanta % OPTGEN_VECTOR_SIZE;
             //and for prefetch hits, we train the last prefetch trigger PC
