@@ -3,10 +3,10 @@
 
 using namespace std;
 
-#define value_t short signed int;
-#define hist_n 5;
-#define max_weight 16;
-#define min_weight -16;
+#define value_t short signed int
+#define hist_n 5
+#define max_weight 16
+#define min_weight -16
 
 
 #include <iostream>
