@@ -284,7 +284,37 @@ So, we need to modify following functions.
 - Renamed the file names
 - Will work on function modification
 
-(6/3)
-Q1: To make sure, updating victim_pc_hist has to be done before predictor's decrement in GetVictimInSet() right?
-Q2: Updating curr_pc_hist has to be done right before predictor's get_prediction in UpdateReplacementState() right?
+(6/1)   
+New Global Variables:
+- k: refer to paper (k-binary features -> length of PC history)
+- MAX_PC_NUM: set to 3000 (in the paper, maximum no. of PCs in the datasets did not exceed 3000)
+- curr_pc_hist & victim_pc_hist: used in `Integer_Ranking_SVM` predictors
+
+`InitReplacementState()`
+- initialize `curr_pc_hist` and `victim_pc_hist`
+- replace predictors into `Integer_Ranking_SVM` predictors
+  
+`GetVictimInSet()`
+- replace predictors into `Integer_Ranking_SVM` predictors
+  
+(6/2)   
+`replace_pc_history_lru()`
+- new function for updating PC histories
+- finds the history with max lru value or empty slot in the history and replace/insert PC
+   
+`update_pc_history_lru()`
+- increment all lru values for existing PC history
+  
+(6/3)  
+`GetVictimInSet()`
+- add update & replace victim PC history
+   
+`UpdateReplacementState()`
+- add update & replace current PC history
+   
+`replace_pc_history_lru()`
+- upgrade to be run more efficiently
+
+Q1: To make sure, updating `victim_pc_hist` has to be done before predictor's `decrement` in `GetVictimInSet()` right?  
+Q2: Updating `curr_pc_hist` has to be done right before predictor's `get_prediction` in `UpdateReplacementState()` right?
 
