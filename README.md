@@ -316,5 +316,4 @@ New Global Variables:
 - upgrade to be run more efficiently
 
 Q1: To make sure, updating `victim_pc_hist` has to be done before predictor's `decrement` in `GetVictimInSet()` right?  
-Q2: Updating `curr_pc_hist` has to be done right before predictor's `get_prediction` in `UpdateReplacementState()` right?
-
+Q2: Updating `curr_pc_hist` has to be done right before predictor's `get_prediction` in `UpdateReplacementState()` right? => YES
