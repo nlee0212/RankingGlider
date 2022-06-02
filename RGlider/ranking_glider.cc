@@ -340,9 +340,9 @@ void UpdateReplacementState (uint32_t cpu, uint32_t set, uint32_t way, uint64_t 
         }
 
         // Get Hawkeye's prediction for this line
-        bool new_prediction = demand_predictor->get_prediction (PC);
+        bool new_prediction = demand_predictor->get_prediction (curr_pc_hist,victim_pc_hist);
         if (type == PREFETCH)
-            new_prediction = prefetch_predictor->get_prediction (PC);
+            new_prediction = prefetch_predictor->get_prediction (curr_pc_hist,victim_pc_hist);
         // Update the sampler with the timestamp, PC and our prediction
         // For prefetches, the PC will represent the trigger PC
         addr_history[sampler_set][sampler_tag].update(perset_mytimer[set], PC, new_prediction);
@@ -351,9 +351,9 @@ void UpdateReplacementState (uint32_t cpu, uint32_t set, uint32_t way, uint64_t 
         perset_mytimer[set] = (perset_mytimer[set]+1) % TIMER_SIZE;
     }
 
-    bool new_prediction = demand_predictor->get_prediction (PC);
+    bool new_prediction = demand_predictor->get_prediction (curr_pc_hist,victim_pc_hist);
     if (type == PREFETCH)
-        new_prediction = prefetch_predictor->get_prediction (PC);
+        new_prediction = prefetch_predictor->get_prediction (curr_pc_hist,victim_pc_hist);
 
     signatures[set][way] = PC;
 
