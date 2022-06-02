@@ -278,7 +278,13 @@ So, we need to modify following functions.
   + For the current PC history, replace the oldest one to current PC.
   + For the cache history, 
 
-  # Nayeon (5/31)
-  - Created a RGlider directory which will be our main working directory
-  - Renamed the file names
-  - Will work on function modification
+# Nayeon
+(5/31)
+- Created a RGlider directory which will be our main working directory
+- Renamed the file names
+- Will work on function modification
+
+(6/3)
+Q1: To make sure, updating victim_pc_hist has to be done before predictor's decrement in GetVictimInSet() right?
+Q2: Updating curr_pc_hist has to be done right before predictor's get_prediction in UpdateReplacementState() right?
+
