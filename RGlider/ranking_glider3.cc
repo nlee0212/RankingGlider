@@ -186,7 +186,7 @@ uint32_t GetVictimInSet (uint32_t cpu, uint32_t set, const BLOCK *current_set, u
         cache_pc_hist[set][lru_victim][j] = curr_pc_hist[j];
     }
 
-    if( SAMPLED_SET(set) )
+    if( SAMPLED_SET(set) && max_prediction < 0)
     {
         //ranking_glider_predictor->decrement(curr_pc_hist,victim_pc_hist);
         if(prefetched[set][lru_victim])
