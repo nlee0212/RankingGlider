@@ -171,8 +171,41 @@ uint32_t GetVictimInSet (uint32_t cpu, uint32_t set, const BLOCK *current_set, u
         }
     }
 
-    // We cannot find a better line, so we bypass.
-    return 16;
+    // We cannot find a better line, we find at least better one.
+    int32_t max_prediction = 0;
+    int32_t curr_prediction;
+    int32_t lru_victim = -1;
+    for (uint32_t i=0; i<LLC_WAYS; i++) {
+        if (prefetched[set][i]) {
+            curr_prediction = prefetch_predictor->get_value(curr_pc_hist, cache_pc_hist[set][i]);
+            if (curr_prediction > max_prediction) {
+                max_prediction = curr_prediction;
+                lru_victim = i;
+            }
+        }
+        else {
+            curr_prediction = demand_predictor->get_value(curr_pc_hist, cache_pc_hist[set][i]);
+            if (curr_prediction > max_prediction) {
+                max_prediction = curr_prediction;
+                lru_victim = i;
+            }
+        }
+    }
+
+    for (uint32_t j=0; j<k; j++) {
+        victim_pc_hist[j] = cache_pc_hist[set][lru_victim][j];
+        cache_pc_hist[set][lru_victim][j] = curr_pc_hist[j];
+    }
+
+    if( SAMPLED_SET(set) )
+    {
+        //ranking_glider_predictor->decrement(curr_pc_hist,victim_pc_hist);
+        if(prefetched[set][lru_victim])
+            prefetch_predictor->decrement(curr_pc_hist,victim_pc_hist);
+        else
+            demand_predictor->decrement(curr_pc_hist,victim_pc_hist);
+    }
+    return lru_victim;
 }
 
 void replace_addr_history_element(unsigned int sampler_set)
@@ -326,12 +359,6 @@ void UpdateReplacementState (uint32_t cpu, uint32_t set, uint32_t way, uint64_t 
         //Increment the set timer
         perset_mytimer[set] = (perset_mytimer[set]+1) % TIMER_SIZE;
     }
-
-    bool new_prediction = demand_predictor->get_prediction (curr_pc_hist,victim_pc_hist);
-    if (type == PREFETCH)
-        new_prediction = prefetch_predictor->get_prediction (curr_pc_hist,victim_pc_hist);
-
-    signatures[set][way] = PC;
 }
 
 // use this function to print out your own stats on every heartbeat 

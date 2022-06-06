@@ -78,6 +78,21 @@ class Integer_Ranking_SVM
     }
     return (result > 0);
   }
+
+  value_t get_value (uint64_t curr_pc_hist[hist_n], uint64_t victim_pc_hist[hist_n])
+  {
+    int64_t result = 0;
+    for (int i = 0; i < hist_n; i++) {
+      uint64_t curr_sig = CRC(curr_pc_hist[i]) % SHCT_SIZE;
+      if (TABLE.find(curr_sig) != TABLE.end())
+        result += TABLE[curr_sig];
+      
+      uint64_t victim_sig = CRC(victim_pc_hist[i]) % SHCT_SIZE;
+      if (TABLE.find(victim_sig) != TABLE.end())
+        result -= TABLE[victim_sig];
+    }
+    return result;
+  }
 };
 
 #endif
