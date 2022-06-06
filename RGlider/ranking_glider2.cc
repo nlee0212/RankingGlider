@@ -169,6 +169,16 @@ uint32_t GetVictimInSet (uint32_t cpu, uint32_t set, const BLOCK *current_set, u
                 return i;
             }
         }
+        else {
+            prediction = demand_predictor->get_prediction(curr_pc_hist, cache_pc_hist[set][i]);
+            if (prediction) {
+                for (uint32_t j=0; j<k; j++) {
+                    victim_pc_hist[j] = cache_pc_hist[set][i][j];
+                    cache_pc_hist[set][i][j] = curr_pc_hist[j];
+                }
+                return i;
+            }
+        }
     }
 
     // We cannot find a better line, we find at least better one.
