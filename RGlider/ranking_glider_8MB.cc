@@ -44,9 +44,13 @@ bool prefetched[LLC_SETS][LLC_WAYS];
 #define MAX_SHCT 31
 #define SHCT_SIZE_BITS 14
 #define SHCT_SIZE (1<<SHCT_SIZE_BITS)
-#include "hawkeye_predictor.h"
-HAWKEYE_PC_PREDICTOR* demand_predictor;  //Predictor
-HAWKEYE_PC_PREDICTOR* prefetch_predictor;  //Predictor
+//#include "hawkeye_predictor.h"
+//HAWKEYE_PC_PREDICTOR* demand_predictor;  //Predictor
+//HAWKEYE_PC_PREDICTOR* prefetch_predictor;  //Predictor
+#include "ranking_svm.h"
+Integer_Ranking_SVM* demand_predictor;
+Integer_Ranking_SVM* prefetch_predictor;
+
 
 #define OPTGEN_VECTOR_SIZE 128
 #include "optgen.h"
@@ -65,6 +69,14 @@ OPTgen perset_optgen[LLC_SETS]; // per-set occupancy vectors; we only use 64 of 
 #define SAMPLER_SETS SAMPLED_CACHE_SIZE/SAMPLER_WAYS
 vector<map<uint64_t, ADDR_INFO> > addr_history; // Sampler
 
+#define k 5
+#define MAX_PC_NUM 3000
+uint64_t curr_pc_hist[k];
+uint64_t victim_pc_hist[k];
+short int binary_feature[MAX_PC_NUM];
+short int curr_pc_hist_lru[k];
+short int victim_pc_hist_lru[k];
+
 // initialize replacement state
 void InitReplacementState()
 {
@@ -82,17 +94,71 @@ void InitReplacementState()
     for (int i=0; i<SAMPLER_SETS; i++) 
         addr_history[i].clear();
 
-    demand_predictor = new HAWKEYE_PC_PREDICTOR();
-    prefetch_predictor = new HAWKEYE_PC_PREDICTOR();
+    demand_predictor = new Integer_Ranking_SVM();
+    prefetch_predictor = new Integer_Ranking_SVM();
 
-    cout << "Initialize Hawkeye state" << endl;
+    //ranking_glider_predictor = new Integer_Ranking_SVM();
+    
+    for(int i=0;i<k;i++){
+        curr_pc_hist[i] = 0;
+        victim_pc_hist[i] = 0;
+        curr_pc_hist_lru[i] = -1;
+        victim_pc_hist_lru[i] = -1;
+    }
+
+    for(int i=0;i<MAX_PC_NUM;i++)
+        binary_feature[i] = 0;
+
+    cout << "Initialize Ranking Glider state" << endl;
+}
+
+// replace PC with max LRU
+void replace_pc_history_lru(uint64_t PC, uint64_t* pc_history, short int* lru){
+    //short int max_lru = -1;
+    short int max_lru_idx = -1;
+    short int empty_idx = -1;
+
+    for(int i=0;i<k;i++){
+        // if there is an empty seat, no need to find max lru
+        if(lru[i] < 0){
+            empty_idx = i;
+            break;
+        }
+
+        // if oldest lru found, break
+        if(lru[i] == k-1){
+            //max_lru = lru[i];
+            max_lru_idx = i;
+            break;
+        }
+    }
+
+    // if there was an empty seat, fill in the PC, update lru to 0 and return
+    if(empty_idx != -1){
+        pc_history[empty_idx] = PC;
+        lru[empty_idx] = 0;
+        return;
+    }
+
+    // if there is no empty seat, there should be a seat with lru == 4 (oldest)
+    assert(max_lru_idx != -1);
+
+    pc_history[max_lru_idx] = PC;
+    lru[max_lru_idx] = 0;
+}
+
+// update lru value of pc history
+void update_pc_history_lru(short int* lru){
+    for(int i=0;i<k;i++)
+        if(lru[i] >= 0)
+            lru[i]++;
 }
 
 // find replacement victim
 // return value should be 0 ~ 15 or 16 (bypass)
 uint32_t GetVictimInSet (uint32_t cpu, uint32_t set, const BLOCK *current_set, uint64_t PC, uint64_t paddr, uint32_t type)
 {
-    // look for the maxRRPV line
+    // look for the maxRRPV line (which is the cache-averse line) -> no need to change?
     for (uint32_t i=0; i<LLC_WAYS; i++)
         if (rrpv[set][i] == maxRRPV)
             return i;
@@ -109,14 +175,18 @@ uint32_t GetVictimInSet (uint32_t cpu, uint32_t set, const BLOCK *current_set, u
         }
     }
 
+    update_pc_history_lru(victim_pc_hist_lru);
+    replace_pc_history_lru(signatures[set][lru_victim],victim_pc_hist,victim_pc_hist_lru);
+
     assert (lru_victim != -1);
     //The predictor is trained negatively on LRU evictions
     if( SAMPLED_SET(set) )
     {
+        //ranking_glider_predictor->decrement(curr_pc_hist,victim_pc_hist);
         if(prefetched[set][lru_victim])
-            prefetch_predictor->decrement(signatures[set][lru_victim]);
+            prefetch_predictor->decrement(curr_pc_hist,victim_pc_hist);
         else
-            demand_predictor->decrement(signatures[set][lru_victim]);
+            demand_predictor->decrement(curr_pc_hist,victim_pc_hist);
     }
     return lru_victim;
 
@@ -156,7 +226,6 @@ void update_addr_history_lru(unsigned int sampler_set, unsigned int curr_lru)
     }
 }
 
-
 // called on every cache hit and cache fill
 void UpdateReplacementState (uint32_t cpu, uint32_t set, uint32_t way, uint64_t paddr, uint64_t PC, uint64_t victim_addr, uint32_t type, uint8_t hit)
 {
@@ -174,6 +243,10 @@ void UpdateReplacementState (uint32_t cpu, uint32_t set, uint32_t way, uint64_t 
     if (type == WRITEBACK)
         return;
 
+    // update current PC history
+    update_pc_history_lru(curr_pc_hist_lru);
+    replace_pc_history_lru(PC,curr_pc_hist,curr_pc_hist_lru);
+
 
     //If we are sampling, OPTgen will only see accesses from sampled sets
     if(SAMPLED_SET(set))
@@ -186,29 +259,33 @@ void UpdateReplacementState (uint32_t cpu, uint32_t set, uint32_t way, uint64_t 
         assert(sampler_set < SAMPLER_SETS);
 
         // This line has been used before. Since the right end of a usage interval is always 
-        //a demand, ignore prefetches
+        // a demand, ignore prefetches
         if((addr_history[sampler_set].find(sampler_tag) != addr_history[sampler_set].end()) && (type != PREFETCH))
         {
             unsigned int curr_timer = perset_mytimer[set];
             if(curr_timer < addr_history[sampler_set][sampler_tag].last_quanta)
-               curr_timer = curr_timer + TIMER_SIZE;
+                curr_timer = curr_timer + TIMER_SIZE;
             bool wrap =  ((curr_timer - addr_history[sampler_set][sampler_tag].last_quanta) > OPTGEN_VECTOR_SIZE);
             uint64_t last_quanta = addr_history[sampler_set][sampler_tag].last_quanta % OPTGEN_VECTOR_SIZE;
             //and for prefetch hits, we train the last prefetch trigger PC
             if( !wrap && perset_optgen[set].should_cache(curr_quanta, last_quanta))
             {
                 if(addr_history[sampler_set][sampler_tag].prefetched)
-                    prefetch_predictor->increment(addr_history[sampler_set][sampler_tag].PC);
+                    //prefetch_predictor->increment(addr_history[sampler_set][sampler_tag].PC);
+                    prefetch_predictor->increment(curr_pc_hist,victim_pc_hist);
                 else
-                    demand_predictor->increment(addr_history[sampler_set][sampler_tag].PC);
-            }
+                    //demand_predictor->increment(addr_history[sampler_set][sampler_tag].PC);
+                    demand_predictor->increment(curr_pc_hist,victim_pc_hist);
+	    }
             else
             {
                 //Train the predictor negatively because OPT would not have cached this line
                 if(addr_history[sampler_set][sampler_tag].prefetched)
-                    prefetch_predictor->decrement(addr_history[sampler_set][sampler_tag].PC);
+                    //prefetch_predictor->decrement(addr_history[sampler_set][sampler_tag].PC);
+                    prefetch_predictor->decrement(curr_pc_hist,victim_pc_hist);
                 else
-                    demand_predictor->decrement(addr_history[sampler_set][sampler_tag].PC);
+                    //demand_predictor->decrement(addr_history[sampler_set][sampler_tag].PC);
+                    demand_predictor->decrement(curr_pc_hist,victim_pc_hist);
             }
             //Some maintenance operations for OPTgen
             perset_optgen[set].add_access(curr_quanta);
@@ -247,9 +324,11 @@ void UpdateReplacementState (uint32_t cpu, uint32_t set, uint32_t way, uint64_t 
                 if(perset_optgen[set].should_cache(curr_quanta, last_quanta))
                 {
                     if(addr_history[sampler_set][sampler_tag].prefetched)
-                        prefetch_predictor->increment(addr_history[sampler_set][sampler_tag].PC);
-                    else
-                       demand_predictor->increment(addr_history[sampler_set][sampler_tag].PC);
+                        //prefetch_predictor->increment(addr_history[sampler_set][sampler_tag].PC);
+                        prefetch_predictor->increment(curr_pc_hist,victim_pc_hist);
+		    else
+                        //demand_predictor->increment(addr_history[sampler_set][sampler_tag].PC);
+                        demand_predictor->increment(curr_pc_hist,victim_pc_hist);
                 }
             }
 
@@ -261,9 +340,9 @@ void UpdateReplacementState (uint32_t cpu, uint32_t set, uint32_t way, uint64_t 
         }
 
         // Get Hawkeye's prediction for this line
-        bool new_prediction = demand_predictor->get_prediction (PC);
+        bool new_prediction = demand_predictor->get_prediction (curr_pc_hist,victim_pc_hist);
         if (type == PREFETCH)
-            new_prediction = prefetch_predictor->get_prediction (PC);
+            new_prediction = prefetch_predictor->get_prediction (curr_pc_hist,victim_pc_hist);
         // Update the sampler with the timestamp, PC and our prediction
         // For prefetches, the PC will represent the trigger PC
         addr_history[sampler_set][sampler_tag].update(perset_mytimer[set], PC, new_prediction);
@@ -272,9 +351,9 @@ void UpdateReplacementState (uint32_t cpu, uint32_t set, uint32_t way, uint64_t 
         perset_mytimer[set] = (perset_mytimer[set]+1) % TIMER_SIZE;
     }
 
-    bool new_prediction = demand_predictor->get_prediction (PC);
+    bool new_prediction = demand_predictor->get_prediction (curr_pc_hist,victim_pc_hist);
     if (type == PREFETCH)
-        new_prediction = prefetch_predictor->get_prediction (PC);
+        new_prediction = prefetch_predictor->get_prediction (curr_pc_hist,victim_pc_hist);
 
     signatures[set][way] = PC;
 
