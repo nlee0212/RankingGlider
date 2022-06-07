@@ -6,8 +6,8 @@ using namespace std;
 #define value_t short signed int
 #define hist_n 5
 #define max_pc_value 3000
-//#define max_weight 16
-//#define min_weight -16
+#define max_weight 16
+#define min_weight -16
 
 typedef map<uint64_t,value_t> RankMap;
 
@@ -39,14 +39,14 @@ class Integer_Ranking_SVM
       uint64_t curr_sig = CRC(curr_pc_hist[i]) % SHCT_SIZE;
       if (TABLE[PC].find(curr_sig) == TABLE[PC].end())
         TABLE[PC][curr_sig] = 0;
-      //if (TABLE[curr_sig] != max_weight)
-      TABLE[PC][curr_sig]++;
+      if (TABLE[curr_sig] != max_weight)
+        TABLE[PC][curr_sig]++;
 
       uint64_t victim_sig = CRC(victim_pc_hist[i]) % SHCT_SIZE;
       if (TABLE[PC].find(victim_sig) == TABLE[PC].end())
         TABLE[PC][victim_sig] = 0;
-      //if (TABLE[victim_sig] != min_weight)
-      TABLE[PC][victim_sig]--;
+      if (TABLE[victim_sig] != min_weight)
+        TABLE[PC][victim_sig]--;
     }
   }
 
@@ -56,14 +56,14 @@ class Integer_Ranking_SVM
       uint64_t curr_sig = CRC(curr_pc_hist[i]) % SHCT_SIZE;
       if (TABLE[PC].find(curr_sig) == TABLE[PC].end())
         TABLE[PC][curr_sig] = 0;
-      //if (TABLE[curr_sig] != min_weight)
-      TABLE[PC][curr_sig]--;
+      if (TABLE[curr_sig] != min_weight)
+        TABLE[PC][curr_sig]--;
 
       uint64_t victim_sig = CRC(victim_pc_hist[i]) % SHCT_SIZE;
       if (TABLE[PC].find(victim_sig) == TABLE[PC].end())
         TABLE[PC][victim_sig] = 0;
-      //if (TABLE[victim_sig] != max_weight)
-      TABLE[PC][victim_sig]++;
+      if (TABLE[victim_sig] != max_weight)
+        TABLE[PC][victim_sig]++;
     }
   }
 
