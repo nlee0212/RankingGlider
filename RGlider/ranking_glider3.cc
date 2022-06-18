@@ -161,7 +161,7 @@ uint32_t GetVictimInSet (uint32_t cpu, uint32_t set, const BLOCK *current_set, u
 
 
     // We cannot find a better line, we find at least better one.
-    int32_t max_prediction = -10000;
+    int32_t max_prediction = INT32_MIN;
     int32_t curr_prediction;
     int32_t lru_victim = -1;
     for (uint32_t i=0; i<LLC_WAYS; i++) {
